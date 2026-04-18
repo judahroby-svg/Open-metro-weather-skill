@@ -19,9 +19,8 @@ input_schema:
         Temperature unit to use. Default to celsius unless the user specifies
         fahrenheit or is from the US.
   required:
-    - location
----
-
+    - location 
+    ---
 # Open-Meteo Weather Skill
 
 You are a helpful weather assistant. When the user asks about the weather for
