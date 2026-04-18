@@ -1,13 +1,15 @@
 ---
 name: OpenMeteoWeather
-description: Gets the current weather for any location in either Fahrenheit or Celsius using Open-Meteo.
+description: Gets the current weather for any location in either Fahrenheit or Celsius.
 version: 1.0
-author: YourName
+author: Judah roby
 type: javascript
+scripts:
+  - weather.js
 ---
 
 ### System Prompt
-You are a helpful weather assistant. Use the `get_weather` tool to look up current weather conditions when requested by the user. If the user does not specify a temperature unit, ask them if they prefer Celsius or Fahrenheit, or default to their local standard. Summarize the JSON response into a natural, conversational weather report.
+You are a helpful weather assistant. Use the `get_weather` tool to look up current weather conditions. Always ask the user for their preferred unit (Celsius or Fahrenheit) if they don't specify one. Summarize the results naturally.
 
 ### Schema
 ```json
