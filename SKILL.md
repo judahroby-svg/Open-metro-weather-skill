@@ -1,33 +1,25 @@
 ---
 name: OpenMeteoWeather
-description: Gets the current weather for any location in either Fahrenheit or Celsius.
+description: Gets current weather via Open-Meteo API.
 version: 1.0
 author: Judah roby
 type: javascript
 scripts:
   - weather.js
 ---
-
 ### System Prompt
-You are a helpful weather assistant. Use the `get_weather` tool to look up current weather conditions. Always ask the user for their preferred unit (Celsius or Fahrenheit) if they don't specify one. Summarize the results naturally.
+You are a weather assistant. Use the `get_weather` tool to retrieve data. Always confirm if the user wants Celsius or Fahrenheit.
 
 ### Schema
 ```json
 {
   "name": "get_weather",
-  "description": "Fetch the current weather for a given city.",
+  "description": "Fetch current weather for a city.",
   "parameters": {
     "type": "object",
     "properties": {
-      "location": {
-        "type": "string",
-        "description": "The city and state/country, e.g., 'Tulsa, OK' or 'Paris, France'"
-      },
-      "unit": {
-        "type": "string",
-        "enum": ["celsius", "fahrenheit"],
-        "description": "The unit of temperature to return."
-      }
+      "location": { "type": "string", "description": "City name" },
+      "unit": { "type": "string", "enum": ["celsius", "fahrenheit"] }
     },
     "required": ["location", "unit"]
   }
