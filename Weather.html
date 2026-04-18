@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Open-Meteo Weather Skill</title>
+</head>
+<body>
+<script>
+/**
+ * Google AI Edge Gallery – Open-Meteo Weather Skill
+ *
+ * Uses:
+ *  - Open-Meteo Geocoding API to resolve a city name → lat/lon
+ *  - Open-Meteo Forecast API to get current + hourly weather
+ *
+ * No API key required. Free for non-commercial use.
+ */
+
+// WMO Weather Interpretation Codes → human-readable description
+const WMO_CODES = {
+  0:  "Clear sky",
+  1:  "Mainly clear",
+  2:  "Partly cloudy",
+  3:  "Overcast",
+  45: "Fog",
+  48: "Depositing rime fog",
+  51: "Light drizzle",
+  53: "Moderate drizzle",
+  55: "Dense drizzle",
+  61: "Slight rain",
+  63: "Moderate rain",
+  65: "Heavy rain",
+  71: "Slight snow fall",
+  73: "Moderate snow fall",
+  75: "Heavy snow fall",
+  77: "Snow grains",
+  80: "Slight rain showers",
+  81: "Moderate rain showers",
+  82: "Violent rain showers",
+  85: "Slight snow showers",
+  86: "Heavy snow showers",
+  95: "Thunderstorm",
+  96: "Thunderstorm with slight hail",
+  99: "Thunderstorm with heavy hail",
+};
+
+/**
+ * Main entry point called by AI Edge Gallery.
+ * @param {Object} params - { location: string, units?: "celsius"|"fahrenheit" }
+ * @returns {Promise<string>} JSON string result passed back to the LLM.
+ */
+window.ai_edge_gallery_get_result = async function (params) {
+  const location = (params.location || "").trim();
+  const units    = (params.units   || "celsius").toLowerCase();
+
+  if (!location) {
+    return JSON.stringify({ error: "No location provided. Please specify a city or place name." });
+  }
+
+  try {
+    // ── Step 1: Geocode the location name ────────────────────────────────────
+    const geoUrl =
+      `https://geocoding-api.open-meteo.com/v1/search` +
+      `?name=${encodeURIComponent(location)}&count=1&language=en&format=json`;
+
+    const geoRes  = await fetch(geoUrl);
+    const geoData = await geoRes.json();
+
+    if (!geoData.results || geoData.results.length === 0) {
+      return JSON.stringify({
+        error: `Could not find a location matching "${location}". ` +
+               `Try a more specific city name.`,
+      });
+    }
+
+    const place     = geoData.results[0];
+    const lat       = place.latitude;
+    const lon       = place.longitude;
+    const placeName = [place.name, place.admin1, place.country]
+                        .filter(Boolean).join(", ");
+    const timezone  = place.timezone || "auto";
+
+    // ── Step 2: Fetch weather data ───────────────────────────────────────────
+    const tempUnit   = units === "fahrenheit" ? "fahrenheit" : "celsius";
+    const windUnit   = "kmh";
+    const precipUnit = "mm";
+
+    const weatherUrl =
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${lat}&longitude=${lon}` +
+      `&current=temperature_2m,relative_humidity_2m,apparent_temperature,` +
+        `weather_code,wind_speed_10m,wind_direction_10m,precipitation,` +
+        `is_day,surface_pressure` +
+      `&hourly=temperature_2m,weather_code,precipitation_probability` +
+      `&daily=weather_code,temperature_2m_max,temperature_2m_min,` +
+        `precipitation_sum,precipitation_probability_max,` +
+        `wind_speed_10m_max,sunrise,sunset` +
+      `&temperature_unit=${tempUnit}` +
+      `&wind_speed_unit=${windUnit}` +
+      `&precipitation_unit=${precipUnit}` +
+      `&timezone=${encodeURIComponent(timezone)}` +
+      `&forecast_days=3`;
+
+    const weatherRes  = await fetch(weatherUrl);
+    const weatherData = await weatherRes.json();
+
+    if (weatherData.error) {
+      return JSON.stringify({ error: weatherData.reason || "Weather API error." });
+    }
+
+    // ── Step 3: Parse and structure the result ───────────────────────────────
+    const cur = weatherData.current;
+    const daily = weatherData.daily;
+
+    const unitSymbol   = tempUnit === "fahrenheit" ? "°F" : "°C";
+    const condition    = WMO_CODES[cur.weather_code] ?? `Code ${cur.weather_code}`;
+    const windDir      = degreesToCompass(cur.wind_direction_10m);
+    const isDaytime    = cur.is_day === 1;
+
+    // Build a 3-day daily summary
+    const dailySummary = (daily.time || []).map((date, i) => ({
+      date,
+      condition:            WMO_CODES[daily.weather_code[i]] ?? `Code ${daily.weather_code[i]}`,
+      temp_max:             `${Math.round(daily.temperature_2m_max[i])}${unitSymbol}`,
+      temp_min:             `${Math.round(daily.temperature_2m_min[i])}${unitSymbol}`,
+      precipitation_mm:     daily.precipitation_sum[i],
+      precip_probability:   `${daily.precipitation_probability_max[i]}%`,
+      wind_speed_max:       `${Math.round(daily.wind_speed_10m_max[i])} km/h`,
+      sunrise:              daily.sunrise ? daily.sunrise[i] : null,
+      sunset:               daily.sunset  ? daily.sunset[i]  : null,
+    }));
+
+    const result = {
+      location:             placeName,
+      latitude:             lat,
+      longitude:            lon,
+      timezone,
+      units:                tempUnit,
+      current: {
+        temperature:        `${Math.round(cur.temperature_2m)}${unitSymbol}`,
+        feels_like:         `${Math.round(cur.apparent_temperature)}${unitSymbol}`,
+        condition,
+        humidity:           `${cur.relative_humidity_2m}%`,
+        wind:               `${Math.round(cur.wind_speed_10m)} km/h ${windDir}`,
+        precipitation:      `${cur.precipitation} mm`,
+        pressure:           `${Math.round(cur.surface_pressure)} hPa`,
+        is_daytime:         isDaytime,
+      },
+      forecast_3_days:      dailySummary,
+      data_source:          "Open-Meteo (open-meteo.com)",
+    };
+
+    return JSON.stringify(result);
+
+  } catch (err) {
+    return JSON.stringify({
+      error: `Failed to fetch weather data: ${err.message}`,
+    });
+  }
+};
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function degreesToCompass(deg) {
+  if (deg == null) return "";
+  const dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
+                 "S","SSW","SW","WSW","W","WNW","NW","NNW"];
+  return dirs[Math.round(deg / 22.5) % 16];
+}
+</script>
+</body>
+</html>
