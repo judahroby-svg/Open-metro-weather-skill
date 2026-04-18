@@ -8,7 +8,7 @@ A lightweight, on-device weather assistant for the **Google AI Edge Gallery**. T
 * **Global Search**: Includes a geocoding step to find coordinates for any city.
 * **Unit Support**: Toggle between Celsius (C) and Fahrenheit (F).
 * **Fast & Private**: API calls are made directly from your device.
-
+**Raw link** ' https://raw.githubusercontent.com/judahroby-svg/Open-metro-weather-skill/refs/heads/main/SKILL.md'
 ---
 
 ## 🛠️ Installation
